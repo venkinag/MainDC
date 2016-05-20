@@ -1,0 +1,86 @@
+﻿{
+  "$schema": "http://schema.management.azure.com/schemas/2014-04-01-preview/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "dnsNameForPublicIP": {
+      "type": "string",
+      "defaultValue": "DNSName",
+      "metadata": {
+        "Description": "The name of the public IP address used to access the VM. Used in case of public IP"
+      }
+    },
+
+    "location": {
+      "type": "string",
+      "metadata": { "Description": "Location where the VM is to be created" }
+    },
+
+    "nicName": {
+      "type": "string",
+      "defaultValue": "DefaultNIC",
+      "metadata": { "Description": "Network Interface card name" }
+    },
+
+    "virtualNetworkName": { "type": "string" },
+    "subNetname": { "type": "string" },
+    "publicIPAddressName": {
+      "type": "string",
+      "defaultValue": "publicIP"
+    },
+
+    "IPAddressAllocationType": {
+      "type": "string",
+      "defaultValue": "Dynamic"
+      //"allowedValues": [
+      //  "Static",
+      //  "Dynamic"
+      //]
+    },
+    "vnetID": {
+      "type": "string",
+        "defaultValue": "virtnet"
+
+    }
+
+  },
+  "variables": {
+    //add
+    //"vnetID": "[Parameters('vnetID')]",
+    "subnetRef": "[concat(Parameters('vnetID'),'/subnets/',Parameters('subnetName'))]"
+  },
+
+  "resources": [
+    {
+      "apiVersion": "2016-03-30",
+      "type": "Microsoft.Network/networkInterfaces",
+      "name": "[Parameters('nicName')]",
+      "location": "[Parameters('location')]",
+      //"dependsOn": [
+        //"[concat('Microsoft.Network/publicIPAddresses/', variables('publicIPAddressName'))]",
+        //"[concat('Microsoft.Network/virtualNetworks/', Parameters('virtualNetworkName'))]"
+       // "Parameters('vnetID')"
+      //],
+
+      "properties": {
+        "ipConfigurations": [
+          {
+            "name": "ipconfig1",
+            "properties": {
+              "privateIPAllocationMethod": "Dynamic", //"[Parameters('IPAddressAllocationType')]",
+              //"privateIPAddress": "",
+              //"publicIPAddress": {
+              //  "id": "[resourceId('Microsoft.Network/publicIPAddresses',variables('publicIPAddressName'))]"
+              //},
+              "subnet": {
+                "id": "[variables('subnetRef')]"
+              }
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "outputs": {
+
+  }
+}

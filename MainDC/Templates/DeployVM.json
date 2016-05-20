@@ -1,0 +1,113 @@
+﻿{
+  "$schema": "http://schema.management.azure.com/schemas/2014-04-01-preview/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "storageAccountName": {
+      "type": "string",
+      "metadata": {
+        "Description": "The name of the storage account where the VM disk is stored."
+      }
+    },
+    "adminUsername": {
+      "type": "string",
+      "metadata": {
+        "Description": "The name of the administrator account on the VM."
+      }
+    },
+    "adminPassword": {
+      "type": "securestring",
+      "metadata": {
+        "Description": "The administrator account password on the VM."
+      }
+    },
+   "location": {
+      "type": "string",
+      "metadata": { "Description": "Location where the VM is to be created" }
+    },
+
+    "vmname": {
+      "type": "string",
+      "metadata": { "Description": "VM Name." }
+    },
+
+    "OSDiskName": {
+      "type": "string",
+      "metadata": { "Description": "OS Disk name for VM" }
+    },
+
+    "nicName": {
+      "type": "string",
+      "metadata": {"Description": "Network Interface card name"}
+    }
+  },
+  "variables": {
+
+    "imagePublisher": "MicrosoftWindowsServer",
+    "imageOffer": "WindowsServer",
+    "windowsOSVersion": "2012-R2-Datacenter",
+    
+    "vmStorageAccountContainerName": "vhds",
+    "vmSize": "Standard_A2"
+    //"virtualNetworkName": "vn1",//Base-Network - read from the other template
+    //"vnetID": "[resourceId('Microsoft.Network/virtualNetworks',variables('virtualNetworkName'))]",
+    //"subnetRef": "[concat(variables('vnetID'),'/subnets/',variables('subnetName'))]"
+  },
+  "resources": [
+    {
+      "apiVersion": "2015-06-15",
+      "type": "Microsoft.Compute/virtualMachines",
+      "name": "[Parameters('vmname')]",
+      "location": "[Parameters('location')]",
+      //"dependsOn": [
+      //  "[reference(concat('Microsoft.Storage/storageAccounts/', Parameters('storageAccountName')),'2015-06-15')]",
+      //  "[reference(concat('Microsoft.Network/networkInterfaces/', Parameters('nicName')),'2015-06-15')]"
+      //],
+      "properties": {
+        "hardwareProfile": {
+          "vmSize": "[variables('vmSize')]"
+        },
+        "osProfile": {
+          "computerName": "[Parameters('vmName')]",
+          "adminUsername": "[Parameters('adminUsername')]",
+          "adminPassword": "[Parameters('adminPassword')]"
+        },
+        "storageProfile": {
+          "imageReference": {
+            "publisher": "[variables('imagePublisher')]",
+            "offer": "[variables('imageOffer')]",
+            "sku": "[variables('windowsOSVersion')]",
+            "version": "latest"
+          },
+          "osDisk": {
+            "name": "[Parameters('OSDiskName')]",
+            "vhd": {
+              "uri": "[concat('http://',Parameters('storageAccountName'),'.blob.core.windows.net/',variables('vmStorageAccountContainerName'),'/',parameters('OSDiskName'),'.vhd')]"
+            },
+            "caching": "ReadWrite",
+            "createOption": "FromImage"
+          }
+        },
+        "networkProfile": {
+          "networkInterfaces": [
+            {
+              "id": "[resourceId('Microsoft.Network/networkInterfaces',Parameters('nicName'))]"
+            }
+          ]
+        }
+      }
+    }
+  ],
+
+  "outputs": {
+    "ExistingStorage": {
+      "value": "[reference(concat('Microsoft.Storage/storageAccounts/', Parameters('storageAccountName')),'2015-06-15')]",
+      "type": "object"
+    },
+
+    "ExistingNetwork": {
+      "value": "[reference(concat('Microsoft.Network/networkInterfaces/', Parameters('nicName')),'2015-06-15')]",
+      "type": "object"
+    }
+    
+  }
+}

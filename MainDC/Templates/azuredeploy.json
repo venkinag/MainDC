@@ -1,0 +1,372 @@
+﻿{
+  "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "virtualNetworkName": {
+      "type": "string",
+      "defaultValue": "Base-Network",
+      "metadata": {
+        "description": "This is the name of the Virtual Network"
+      }
+    },
+
+    "WebNSGName": {
+      "type": "string",
+      "defaultValue": "NSG-WebTier",
+      "metadata": {
+        "description": "Name for the NSG used to allow remote RDP and HTTP"
+      }
+    },
+
+    "DBNSGName": {
+      "type": "string",
+      "defaultValue": "NSG-DBTier",
+      "metadata": {
+        "description": "Name for the NSG used to allow incoming requests ONLY from Web tier"
+      }
+    },
+
+    "Loadbalancername": {
+      "type": "string",
+      "defaultValue": "LB-WebTier",
+      "metadata": {
+        "description": "Name of the LB for web tier"
+      }
+    },
+
+    "storageAccountName": {
+      "type": "string",
+      "defaultValue": "maindcstore"
+    },
+
+    "dnsNameForPublicIP": {
+      "type": "string",
+      "defaultValue": "DNSName"
+    },
+    "vmname": {
+      "type": "string",
+      "defaultValue": "vm1"
+    },
+    "nicName": {
+      "type": "string",
+      "defaultValue": "NIC-WebTierVM1"
+    }
+  },
+  "variables": {
+    "BaseNetworkPrefix": "10.0.0.0/16",
+    "BaseNetworkSubnet1Name": "WebNet",
+    "BaseNetworkSubnet1Prefix": "10.0.1.0/24",
+    "BaseNetworkSubnet2Name": "AppNet",
+    "BaseNetworkSubnet2Prefix": "10.0.2.0/24",
+    "BaseNetworkSubnet3Name": "DBNet",
+    "BaseNetworkSubnet3Prefix": "10.0.3.0/24",
+    "vnetID": "[resourceId('Microsoft.Network/virtualNetworks',parameters('virtualNetworkName'))]",
+    "subnetRef": "[concat(variables('vnetID'),'/subnets/',variables ('BaseNetworkSubnet1Name'))]",
+    "webSubnetRef": "[variables('subnetRef')]",
+    "frontEndIPConfigID": "[concat(variables('lbID'),'/frontendIPConfigurations/LoadBalancerFrontEnd')]",
+    //"webSubnetRef": "[concat(resourceId('Micorsoft.Network/virtualNetworks',variables('BaseNetworkSubnet1Name')),'/subnets/',variables ('BaseNetworkSubnet1Name'))]",
+    //"webSubnetRef": "[resourceId('Microsoft.Network/virtualNetworks',variables('BaseNetworkSubnet1Name'))]",
+    "lbID": "[resourceId('Microsoft.Network/loadBalancers',parameters('Loadbalancername'))]",
+
+   // "baseURI": "[deployment().properties.templateLink.uri]",
+    "storagetemplate": [ "uri(deployment().properties.templateLink.uri, 'deploystorage.json')" ], //" ttps://roughnote.visualstudio.com/MainDC/_git/MainDC?path=%2FMainDC%2FTemplates%2FDeployStorage.json",
+    "StorageAccountType": "Standard_LRS",
+    "nictemplate": [ "uri(deployment().properties.templateLink.uri, 'deploynic.json')" ],
+    // "ttps://roughnote.visualstudio.com/MainDC/_git/MainDC?path=%2FMainDC%2FTemplates%2FDeployNIC.json",
+    "vmtemplate": [ "uri(deployment().properties.templateLink.uri, 'deployvm.json')" ]
+    //"ttps://roughnote.visualstudio.com/MainDC/_git/MainDC?path=%2FMainDC%2FTemplates%2FDeployVM.json"
+
+  },
+  "resources": [
+
+    //
+    // Virtual Network
+    //
+
+    {
+      "name": "[parameters('virtualNetworkName')]",
+      "type": "Microsoft.Network/virtualNetworks",
+      "location": "[resourceGroup().location]",
+      "apiVersion": "2015-06-15",
+      "dependsOn": [
+        "[concat('Microsoft.Network/networkSecurityGroups/', parameters('WebNSGName'))]", //'WebTierNSGRules')]",
+        "[concat('Microsoft.Network/networkSecurityGroups/', parameters('DBNSGName'))]"
+      ],
+      "tags": {
+        "displayName": "Main Data Center Network"
+      },
+      "properties": {
+        "addressSpace": {
+          "addressPrefixes": [
+            "[variables('BaseNetworkPrefix')]"
+          ]
+        },
+        "subnets": [
+          {
+            "name": "[variables('BaseNetworkSubnet1Name')]",
+            "properties": {
+              "addressPrefix": "[variables('BaseNetworkSubnet1Prefix')]"
+
+            }
+          },
+          {
+            "name": "[variables('BaseNetworkSubnet2Name')]",
+            "properties": {
+              "addressPrefix": "[variables('BaseNetworkSubnet2Prefix')]"
+            }
+          },
+          {
+            "name": "[variables('BaseNetworkSubnet3Name')]",
+            "properties": {
+              "addressPrefix": "[variables('BaseNetworkSubnet3Prefix')]"
+            }
+          }
+        ]
+      }
+    },
+
+    //
+    // NSG - DB Tier
+    //
+
+    {
+      "name": "[parameters('DBNSGName')]",
+      "type": "Microsoft.Network/networkSecurityGroups",
+      "location": "[resourceGroup().location]",
+      "apiVersion": "2015-06-15",
+      "dependsOn": [
+      ],
+      "tags": {
+        "displayName": "DB Tier NSG Rules"
+      },
+      "properties": {
+        "securityRules": [
+          {
+            "name": "allow-webtier",
+            "properties": {
+              "description": "Allow incoming access from webtier",
+              "protocol": "Tcp",
+              "sourcePortRange": "*",
+              "destinationPortRange": "1433",
+              "sourceAddressPrefix": "[variables('BaseNetworkSubnet1Prefix')]",
+              "destinationAddressPrefix": "*",
+              "access": "Allow",
+              "priority": 100,
+              "direction": "Inbound"
+            }
+          },
+          {
+            "name": "deny-internet",
+            "properties": {
+              "description": "Deny outgoing access to internet",
+              "protocol": "*",
+              "sourcePortRange": "*",
+              "destinationPortRange": "*",
+              "sourceAddressPrefix": "*",
+              "destinationAddressPrefix": "Internet",
+              "access": "Deny",
+              "priority": 200,
+              "direction": "Outbound"
+            }
+          }
+        ]
+      }
+    },
+
+    //
+    // NSG - Web Tier
+    //
+    {
+      "name": "[parameters('WebNSGName')]", //"WebTierNSGRules",
+      "type": "Microsoft.Network/networkSecurityGroups",
+      "location": "[resourceGroup().location]",
+      "apiVersion": "2015-06-15",
+      "dependsOn": [
+      ],
+      "tags": {
+        "displayName": "Web Tier NSG Rules"
+      },
+      "properties": {
+        "securityRules": [
+          {
+            "name": "allow-rdp",
+            "properties": {
+              "description": "Allow inbound RDP",
+              "protocol": "Tcp",
+              "sourcePortRange": "*",
+              "destinationPortRange": "3389",
+              "sourceAddressPrefix": "Internet",
+              "destinationAddressPrefix": "*",
+              "access": "Allow",
+              "priority": 100,
+              "direction": "Inbound"
+            }
+          },
+          {
+            "name": "allow-http",
+            "properties": {
+              "description": "Allow incoming http requests",
+              "protocol": "Tcp",
+              "sourcePortRange": "*",
+              "destinationPortRange": "80",
+              "sourceAddressPrefix": "Internet",
+              "destinationAddressPrefix": "*",
+              "access": "Allow",
+              "priority": 101,
+              "direction": "Inbound"
+            }
+          }
+        ]
+      }
+    },
+
+
+    //
+    // Region: Load Balancer
+    //
+    {
+      "name": "[parameters('Loadbalancername')]",
+      "type": "Microsoft.Network/loadBalancers",
+      "location": "[resourceGroup().location]",
+      "apiVersion": "2015-05-01-preview",
+      "dependsOn": [
+        "[variables('vnetID')]"
+      ],
+      "tags": {
+        "displayName": "Web tier load balancer"
+      },
+      "properties": {
+        "frontendIPConfigurations": [
+          {
+            "properties": {
+              "subnet": {
+                "id": "[variables('subnetRef')]"
+              },
+              "privateIPAddress": "10.0.1.6",
+              "privateIPAllocationMethod": "Static"
+            },
+            "name": "WebTierLBipconfig"
+          }
+        ],
+        "backendAddressPools": [
+          {
+            "name": "WebBackendPool"
+          }
+        ],
+
+        "loadBalancingRules": [
+          {
+            "properties": {
+              "backendAddressPool": {
+                "id": "[concat(resourceId('Microsoft.Network/loadBalancers', parameters('Loadbalancername')), '/backendAddressPools/WebBackendPool')]"
+              },
+              "backendPort": 9010,
+              "frontendIPConfiguration": {
+                "id": "[concat(resourceId('Microsoft.Network/loadBalancers', parameters('Loadbalancername')), '/frontendIpConfigurations/WebTierLBipconfig')]"
+              },
+              "frontendPort": 80,
+              "idleTimeoutInMinutes": 15,
+              "probe": {
+                "id": "[concat(resourceId('Microsoft.Network/loadBalancers', parameters('Loadbalancername')), '/probes/WebTierlbprobe')]"
+              },
+              "protocol": "Tcp"
+            },
+            "Name": "lbrule"
+          }
+        ],
+        "probes": [
+          {
+            "name": "WebTierlbprobe",
+            "properties": {
+              "protocol": "Tcp",
+              "port": 80,
+              "intervalInSeconds": 15,
+              "numberOfProbes": 2
+            }
+          }
+        ]
+      }
+    },
+
+    //
+    // Storage account template
+    //
+    {
+      "apiVersion": "2015-01-01",
+      "type": "Microsoft.Resources/deployments",
+      "name": "[parameters('storageAccountName')]",
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "[uri(deployment().properties.templateLink.uri, 'deploystorage.json')]", //"[variables('storagetemplate')]",
+          "contentVersion": "1.0.0.0"
+        },
+        "parameters": {
+          "storageAccountName": { "value": "[parameters('storageAccountName')]" },
+          "storageAccountType": { "value": "[variables('StorageAccountType')]" },
+          "location": { "value": "[resourceGroup().location]" }
+        }
+      }
+    },
+
+    //
+    // NIC Creation template
+    //
+    {
+      "apiVersion": "2015-01-01",
+      "type": "Microsoft.Resources/deployments",
+      "name": "[parameters('nicName')]",
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "[uri(deployment().properties.templateLink.uri, 'deploynic.json')]", //"[variables('nictemplate')]",
+          "contentVersion": "1.0.0.0"
+        },
+        "parameters": {
+          "dnsNameForPublicIP": { "value": "[parameters('dnsNameForPublicIP')]" },
+          "nicName": {
+            "value": "[parameters('nicName')]"}, //,"NIC-WebTierVM1"          
+          "location": { "value": "[resourceGroup().location]" },
+          "VirtualNetworkName": { "value": "[parameters('virtualNetworkName')]" },
+          "subNetName": { "value": "[variables('BaseNetworkSubnet1Name')]" },
+          "publicIPAddressName": { "value": "publicIP" },
+          "IPAddressAllocationType": { "value": "Dynamic" },
+          "vnetID": { "value": "[variables('vnetID')]" }
+        }
+      }
+    },
+
+    //
+    // VM Creation template
+    //
+    {
+      "apiVersion": "2015-01-01",
+      "type": "Microsoft.Resources/deployments",
+      "name": "[parameters('vmname')]",
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "[uri(deployment().properties.templateLink.uri, 'deployvm.json')]", //"[variables('vmtemplate')]",
+          "contentVersion": "1.0.0.0"
+        },
+        "parameters": {
+          "location": { "value": "[resourceGroup().location]" },
+          "storageAccountName": { "value": "[parameters('storageAccountName')]" },
+          "nicName": { "value": "[parameters('nicName')]" },
+          "vmname": { "value": "VM-Web1" },
+          "adminUsername": { "value": "venki" },
+          "adminPassword": { "value": "Smart#16" },
+          "OSDiskName": {"value": "VM-Web1-Diskss"}
+
+        }
+      }
+    }
+  ],
+  "outputs": {
+    //"baseURIvalue": {
+    //  "value": "check check",//"[variables('baseURI')]",
+    //  "type": "string"
+    //}
+  }
+
+} 

@@ -1,0 +1,49 @@
+﻿{
+  "$schema": "http://schema.management.azure.com/schemas/2014-04-01-preview/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "storageAccountName": {
+      "type": "string",
+      //"defaultValue": "maindcStore",
+      "metadata": {
+        "Description": "The name of the storage account where the VM disk is stored."
+      }
+    },
+    "storageAccountType": {
+      "type": "string",
+        "defaultValue": "Standard_LRS",
+      "allowedValues": [
+        "Standard_LRS",
+        "Standard_GRS"
+      ],
+       "metadata": {
+        "Description": "Type of storage Standard_LRS or Standard_GRS."
+      }
+    },
+    "location": {
+      "type": "string",
+      "metadata": {
+        "Description": "Location of the resource."
+      }
+    }
+  },
+  "variables": {
+  //  "location": "[resourceGroup().location]",
+  },
+  "resources": [
+    {
+      "type": "Microsoft.Storage/storageAccounts",
+      "name": "[Parameters('storageAccountName')]",
+      "apiVersion": "2015-06-15",
+      "location": "[Parameters('location')]",
+      "properties": {
+        "accountType": "[Parameters('storageAccountType')]"        
+      }
+    }
+
+  ],
+  "outputs": {
+
+  }
+
+} 
